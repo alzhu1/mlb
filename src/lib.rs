@@ -8,32 +8,40 @@ const MLB_LOOKUP_API_ENDPOINT: &str = "https://statsapi.mlb.com/api/v1";
 const TEAMS_LOOKUP: &str = "teams";
 const SEARCH_PLAYER_ALL: &str = "sports/1/players";
 
+fn get_formatted_url(path: &str) -> Result<Url, Box<dyn std::error::Error>> {
+    Ok(Url::parse(format!("{}/{}", MLB_LOOKUP_API_ENDPOINT, path).as_str())?)
+}
+
+fn get(path: &str, query_params: HashMap<&str, &str>) -> Result<Value, Box<dyn std::error::Error>> {
+    let mut url = get_formatted_url(path)?;
+
+    // Add query params, drop mutable ref to iterator once done
+    {
+        let mut url_query_params = url.query_pairs_mut();
+
+        for (key, value) in query_params {
+            url_query_params.append_pair(key, value);
+        }
+    }
+
+    Ok(reqwest::blocking::get(url.as_str())?.json::<Value>()?)
+}
+
 pub struct MlbClient {
     team_id_map: HashMap<u64, String>,
 }
 
 impl MlbClient {
     pub fn new() -> Self {
-        let team_lookup_url =
-            Url::parse(format!("{}/{}", MLB_LOOKUP_API_ENDPOINT, TEAMS_LOOKUP).as_str());
+        let team_resp = get(TEAMS_LOOKUP, HashMap::from([
+            ("sportId", "1"),
+            ("fields", "teams,id,abbreviation"),
+        ]));
 
-        let mut team_lookup_url = match team_lookup_url {
-            Ok(url) => url,
-            Err(e) => panic!("Failed to parse url: {}", e),
-        };
-
-        team_lookup_url
-            .query_pairs_mut()
-            .append_pair("sportId", "1")
-            .append_pair("fields", "teams,id,abbreviation");
-
-        let team_resp = reqwest::blocking::get(team_lookup_url.as_str());
         let team_resp = match team_resp {
             Ok(resp) => resp,
             Err(e) => panic!("Failed to get response: {}", e),
         };
-
-        let team_resp = team_resp.json::<Value>().unwrap();
 
         let team_id_map: HashMap<u64, String> = team_resp["teams"]
             .as_array()
@@ -47,16 +55,13 @@ impl MlbClient {
             })
             .collect();
 
+        println!("{:#?}", team_id_map.len());
+
         MlbClient { team_id_map }
     }
 
     pub fn get_player(&self, name_query: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let mut url =
-            Url::parse(format!("{}/{}", MLB_LOOKUP_API_ENDPOINT, SEARCH_PLAYER_ALL).as_str())?;
-
-        url.query_pairs_mut().append_pair("season", "2022");
-
-        let resp = reqwest::blocking::get(url.as_str())?.json::<serde_json::Value>()?;
+        let resp = get(SEARCH_PLAYER_ALL, HashMap::from([("season", "2022")]))?;
         let players = resp["people"].as_array().unwrap();
 
         let filtered_players: Vec<&Value> = players
