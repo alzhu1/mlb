@@ -9,7 +9,7 @@ const TEAMS_LOOKUP: &str = "teams";
 const SEARCH_PLAYER_ALL: &str = "sports/1/players";
 
 pub struct MlbClient {
-    pub team_id_map: HashMap<u64, String>,
+    team_id_map: HashMap<u64, String>,
 }
 
 impl MlbClient {

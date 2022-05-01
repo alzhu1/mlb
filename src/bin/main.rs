@@ -20,7 +20,6 @@ use std::io;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mlb_client = mlb::MlbClient::new();
-    println!("Test: {:#?}", mlb_client.team_id_map);
 
     println!("Enter name of player to search: ");
     let mut name_query = String::new();
