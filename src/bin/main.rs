@@ -17,7 +17,6 @@ use std::io;
     7. Exit
 */
 
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mlb_client = mlb::MlbClient::new();
 
@@ -27,7 +26,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .read_line(&mut name_query)
         .expect("Failed to read line");
 
-    mlb_client.get_player(&name_query)?;
+    let player = mlb_client.get_player(&name_query)?;
+    println!("Printing statline for player...");
+    player.print_statline();
 
     Ok(())
 }
