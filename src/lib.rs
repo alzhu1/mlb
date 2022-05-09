@@ -32,14 +32,18 @@ fn get(path: &str, query_params: HashMap<&str, &str>) -> Result<Value, Box<dyn s
     Ok(reqwest::blocking::get(url.as_str())?.json::<Value>()?)
 }
 
-fn get_player_details(player_id: u64, player_type: &str) -> Value {
+fn get_player_details(player_id: u64, player_type: &str, season: &str) -> Value {
     let resp = get(
         PLAYER_LOOKUP,
         HashMap::from([
             ("personIds", player_id.to_string().as_str()),
             (
                 "hydrate",
-                format!("stats(group=[{}],type=season),currentTeam", player_type).as_str(),
+                format!(
+                    "stats(group=[{}],type=season,season={}),currentTeam",
+                    player_type, season
+                )
+                .as_str(),
             ),
         ]),
     );
@@ -51,14 +55,19 @@ fn get_player_details(player_id: u64, player_type: &str) -> Value {
 }
 
 pub struct MlbClient {
+    season: String,
     team_id_map: HashMap<u64, String>,
 }
 
 impl MlbClient {
-    pub fn new() -> Self {
+    pub fn new(season: &str) -> Self {
         let team_resp = get(
             TEAMS_LOOKUP,
-            HashMap::from([("sportId", "1"), ("fields", "teams,id,abbreviation")]),
+            HashMap::from([
+                ("sportId", "1"),
+                ("fields", "teams,id,abbreviation"),
+                ("season", season),
+            ]),
         );
 
         let team_resp = match team_resp {
@@ -80,14 +89,20 @@ impl MlbClient {
 
         println!("{:#?}", team_id_map.len());
 
-        MlbClient { team_id_map }
+        MlbClient {
+            season: season.to_string(),
+            team_id_map,
+        }
     }
 
     pub fn get_player(
         &self,
         name_query: &str,
     ) -> Result<Box<dyn Player>, Box<dyn std::error::Error>> {
-        let resp = get(SEARCH_PLAYER_ALL, HashMap::from([("season", "2022")]))?;
+        let resp = get(
+            SEARCH_PLAYER_ALL,
+            HashMap::from([("season", self.season.as_str())]),
+        )?;
         let players = resp["people"].as_array().unwrap();
 
         let filtered_players: Vec<&Value> = players
@@ -138,9 +153,9 @@ impl MlbClient {
                 .as_str()
                 .unwrap()
             {
-                "P" => Some(Box::new(Pitcher::new(player_id))),
-                "TWP" => Some(Box::new(Pitcher::new(player_id))), // TODO: fix for shohei
-                _ => Some(Box::new(Batter::new(player_id))),
+                "P" => Some(Box::new(Pitcher::new(player_id, &self.season))),
+                "TWP" => Some(Box::new(Pitcher::new(player_id, &self.season))), // TODO: fix for shohei
+                _ => Some(Box::new(Batter::new(player_id, &self.season))),
             }
         } else {
             None
@@ -192,7 +207,6 @@ pub struct Pitcher {
     // TODO: this is expressed as ".---" for players with 0 W/ 0L
     // #[serde_as(as = "DisplayFromStr")]
     // winPercentage: f64,
-
     #[serde_as(as = "DisplayFromStr")]
     era: f64,
     gamesPitched: u64,
@@ -226,16 +240,16 @@ pub struct Pitcher {
 }
 
 impl Batter {
-    fn new(player_id: u64) -> Self {
-        let mut player = get_player_details(player_id, "hitting");
+    fn new(player_id: u64, season: &str) -> Self {
+        let mut player = get_player_details(player_id, "hitting", season);
         let stats = player["people"][0]["stats"][0]["splits"][0]["stat"].take();
         serde_json::from_value(stats).unwrap()
     }
 }
 
 impl Pitcher {
-    fn new(player_id: u64) -> Self {
-        let mut player = get_player_details(player_id, "pitching");
+    fn new(player_id: u64, season: &str) -> Self {
+        let mut player = get_player_details(player_id, "pitching", season);
         let stats = player["people"][0]["stats"][0]["splits"][0]["stat"].take();
         serde_json::from_value(stats).unwrap()
     }
@@ -243,7 +257,7 @@ impl Pitcher {
 
 impl Player for Batter {
     fn print_statline(&self) {
-        println!("{}/{}/{}", self.avg, self.obp, self.slg);
+        println!("{:.3}/{:.3}/{:.3}", self.avg, self.obp, self.slg);
     }
 }
 
