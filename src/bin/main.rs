@@ -1,9 +1,10 @@
 use std::io;
+use chrono::Datelike;
 
 /*
     MLB Stat Searcher
 
-    Basically, I want this CLI app to be used in the following way:
+    Basically, I &&want this CLI app to be used in the following way:
 
     1. cargo run
     2. Prompt user for a search query (i.e. player's name)
@@ -18,6 +19,8 @@ use std::io;
 */
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let current_year = chrono::Utc::now().year();
+
     println!("Enter season year (e.g. 2022): ");
     let mut season = String::new();
 
@@ -25,15 +28,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         read_input(&mut season);
 
         // Limit the season to 1871, though from manual testing, MLB only has earliest stats to 1876
-        match season.trim().parse::<u32>() {
-            Ok(num) => {
-                if num < 1871 {
-                    println!("Year must be greater than 1871")
-                } else {
-                    break;
-                }
+        match season.trim() {
+            "" => {
+                println!("Using default year (this year)");
+                season.push_str(&current_year.to_string());
+                break;
             }
-            Err(_) => println!("Not a valid year"),
+            season => match season.parse::<i32>() {
+                Ok(num) => {
+                    if num < 1871 || num > current_year {
+                        println!("Year must be between years 1871 and {}", current_year);
+                    } else {
+                        break;
+                    }
+                }
+                Err(_) => println!("Not a valid year"),
+            }
         }
 
         season.clear();
