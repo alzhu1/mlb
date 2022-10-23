@@ -1,58 +1,11 @@
+mod requests;
+
 use std::{collections::HashMap, io};
 
-use reqwest::Url;
+use requests::{get_player_details, get_teams, get_players};
 use serde::Deserialize;
 use serde_json::Value;
 use serde_with::{serde_as, DisplayFromStr};
-
-const MLB_LOOKUP_API_ENDPOINT: &str = "https://statsapi.mlb.com/api/v1";
-
-const PLAYER_LOOKUP: &str = "people";
-const TEAMS_LOOKUP: &str = "teams";
-const SEARCH_PLAYER_ALL: &str = "sports/1/players";
-
-fn get_formatted_url(path: &str) -> Result<Url, Box<dyn std::error::Error>> {
-    Ok(Url::parse(
-        format!("{}/{}", MLB_LOOKUP_API_ENDPOINT, path).as_str(),
-    )?)
-}
-
-fn get(path: &str, query_params: HashMap<&str, &str>) -> Result<Value, Box<dyn std::error::Error>> {
-    let mut url = get_formatted_url(path)?;
-
-    // Add query params, drop mutable ref to iterator once done
-    {
-        let mut url_query_params = url.query_pairs_mut();
-
-        for (key, value) in query_params {
-            url_query_params.append_pair(key, value);
-        }
-    }
-
-    Ok(reqwest::blocking::get(url.as_str())?.json::<Value>()?)
-}
-
-fn get_player_details(player_id: u64, player_type: &str, season: &str) -> Value {
-    let resp = get(
-        PLAYER_LOOKUP,
-        HashMap::from([
-            ("personIds", player_id.to_string().as_str()),
-            (
-                "hydrate",
-                format!(
-                    "stats(group=[{}],type=season,season={}),currentTeam",
-                    player_type, season
-                )
-                .as_str(),
-            ),
-        ]),
-    );
-
-    match resp {
-        Ok(response) => response,
-        Err(e) => panic!("Failed to get player details: {}", e),
-    }
-}
 
 pub struct MlbClient {
     season: String,
@@ -61,19 +14,7 @@ pub struct MlbClient {
 
 impl MlbClient {
     pub fn new(season: &str) -> Self {
-        let team_resp = get(
-            TEAMS_LOOKUP,
-            HashMap::from([
-                ("sportId", "1"),
-                ("fields", "teams,id,abbreviation"),
-                ("season", season),
-            ]),
-        );
-
-        let team_resp = match team_resp {
-            Ok(resp) => resp,
-            Err(e) => panic!("Failed to get response: {}", e),
-        };
+        let team_resp = get_teams(season);
 
         let team_id_map: HashMap<u64, String> = team_resp["teams"]
             .as_array()
@@ -87,8 +28,6 @@ impl MlbClient {
             })
             .collect();
 
-        println!("{:#?}", team_id_map.len());
-
         MlbClient {
             season: season.to_string(),
             team_id_map,
@@ -99,10 +38,7 @@ impl MlbClient {
         &self,
         name_query: &str,
     ) -> Result<Box<dyn Player>, Box<dyn std::error::Error>> {
-        let resp = get(
-            SEARCH_PLAYER_ALL,
-            HashMap::from([("season", self.season.as_str())]),
-        )?;
+        let resp = get_players(&self.season.as_str());
         let players = resp["people"].as_array().unwrap();
 
         let filtered_players: Vec<&Value> = players
@@ -119,32 +55,8 @@ impl MlbClient {
         let player_value: Option<&Value> = match filtered_players.len() {
             0 => None,
             1 => Some(filtered_players[0]),
-            _ => {
-                println!(
-                    "{} players found, select the player to view stats for (pick a number).",
-                    filtered_players.len()
-                );
-
-                for (index, player) in filtered_players.iter().enumerate() {
-                    println!(
-                        "{}) {}, {} ({})",
-                        index + 1,
-                        player["fullName"].as_str().unwrap(),
-                        self.team_id_map[&player["currentTeam"]["id"].as_u64().unwrap()],
-                        player["primaryPosition"]["abbreviation"].as_str().unwrap()
-                    );
-                }
-
-                let mut chosen_player = String::new();
-                io::stdin()
-                    .read_line(&mut chosen_player)
-                    .expect("Failed to read line");
-
-                Some(filtered_players[chosen_player.trim().parse::<usize>().unwrap() - 1])
-            }
+            _ => self.filter_players(&filtered_players)
         };
-
-        println!("{:#?}", player_value);
 
         let player: Option<Box<dyn Player>> = if let Some(player_value) = player_value {
             let player_id = player_value["id"].as_u64().unwrap();
@@ -162,6 +74,30 @@ impl MlbClient {
         };
 
         Ok(player.unwrap())
+    }
+
+    fn filter_players<'a>(&'a self, filtered_players: &'a Vec<&Value>) -> Option<&Value> {
+        println!(
+            "{} players found, select the player to view stats for (pick a number).",
+            filtered_players.len()
+        );
+
+        for (index, player) in filtered_players.iter().enumerate() {
+            println!(
+                "{}) {}, {} ({})",
+                index + 1,
+                player["fullName"].as_str().unwrap(),
+                self.team_id_map[&player["currentTeam"]["id"].as_u64().unwrap()],
+                player["primaryPosition"]["abbreviation"].as_str().unwrap()
+            );
+        }
+
+        let mut chosen_player = String::new();
+        io::stdin()
+            .read_line(&mut chosen_player)
+            .expect("Failed to read line");
+
+        Some(filtered_players[chosen_player.trim().parse::<usize>().unwrap() - 1])
     }
 }
 
