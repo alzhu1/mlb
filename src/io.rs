@@ -38,6 +38,14 @@ pub fn get_season() -> String {
     season.trim().to_string()
 }
 
+pub fn get_name_query() -> String {
+    println!("Enter name of player to search: ");
+    let mut name_query = String::new();
+    read_input(&mut name_query);
+
+    name_query.trim().to_owned()
+}
+
 pub fn get_filtered_players<'a>(team_id_map: &'a HashMap<u64, String>, filtered_players: &'a Vec<&'a Value>) -> Option<&'a Value> {
     println!(
         "{} players found, select the player to view stats for (pick a number).",
@@ -88,4 +96,12 @@ pub fn get_leader_category<'a>(leader_categories: &'a HashMap<&'a str, &'a str>,
     read_input(&mut chosen_category);
     let chosen_category = stat_categories[chosen_category.trim().parse::<usize>().unwrap() - 1].to_owned();
     leader_categories[chosen_category.as_str()]
+}
+
+pub fn get_stat_type() -> String {
+    println!("Enter stat type for leaders (hitting or pitching): ");
+    let mut stat_type = String::new();
+    read_input(&mut stat_type);
+
+    stat_type.trim().to_owned()
 }

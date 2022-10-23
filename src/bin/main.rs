@@ -1,6 +1,5 @@
 use std::io;
 
-
 /*
     MLB Stat Searcher
 
@@ -19,21 +18,43 @@ use std::io;
 */
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let choice = get_entry();
     let mlb_client = mlb::MlbClient::new();
 
-    // TODO: better option handling, this code is for player search
-    // println!("Enter name of player to search: ");
-    // let mut name_query = String::new();
-    // read_input(&mut name_query);
-
-    // let player = mlb_client.get_player(&name_query)?;
-    // println!("Printing statline for player...");
-    // player.print_statline();
-
-    // TODO: better option handling, this code is for leaders + team stats
-    // mlb_client.get_team_stats();
-    // mlb_client.get_stat_leaders("hitting");
-    mlb_client.get_team_stat_leaders("pitching");
+    match choice.as_str() {
+        "1" => mlb_client.get_player(),
+        "2" => mlb_client.get_team_stats(),
+        "3" => mlb_client.get_stat_leaders("hitting"),
+        "4" => mlb_client.get_team_stat_leaders("pitching"),
+        _ => panic!("This should not execute"),
+    }
 
     Ok(())
+}
+
+fn read_input(line: &mut String) {
+    io::stdin().read_line(line).expect("Failed to read line");
+}
+
+fn get_entry() -> String{
+    println!("Entering MLB Client. Select action:");
+
+    // Listing options
+    let mut choice = String::new();
+    loop {
+        println!("1) Search for a player");
+        println!("2) Get team stats");
+        println!("3) Get stat leaders");
+        println!("4) Get team stat leaders");
+
+        read_input(&mut choice);
+        match choice.trim() {
+            "1" | "2" | "3" | "4" => break,
+            _ => println!("Select an option between 1-4"),
+        }
+
+        choice.clear();
+    }
+
+    choice.trim().to_string()
 }

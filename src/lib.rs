@@ -1,15 +1,14 @@
-mod requests;
 mod io;
+mod requests;
 
 use std::{collections::HashMap};
 
-use io::{get_season, get_filtered_players};
-use requests::{get_players, get_player_details, get_stat_leaders, get_teams, get_team_stat_leaders, get_team_stats};
 use serde::Deserialize;
 use serde_json::Value;
 use serde_with::{serde_as, DisplayFromStr};
 
-use crate::io::{get_team_id, get_leader_category};
+use crate::io::{get_team_id, get_leader_category, get_season, get_filtered_players, get_name_query};
+use crate::requests::{get_players, get_player_details, get_stat_leaders, get_teams, get_team_stat_leaders, get_team_stats};
 
 const HITTING_CATEGORIES: &'static [&'static str] = &["H", "HR", "RBI","SB","BB","HBP", "SO", "AVG", "OBP", "SLG", "OPS"];
 const PITCHING_CATEGORIES: &'static [&'static str] = &["W", "L", "ERA", "SHO", "HLD", "SV", "IP", "HR", "BB", "SO", "HBP", "WHIP", "BB9", "SO9", "AVG", "OBP", "SLG", "OPS"];
@@ -81,10 +80,8 @@ impl MlbClient<'_> {
         }
     }
 
-    pub fn get_player(
-        &self,
-        name_query: &str,
-    ) -> Result<Box<dyn Player>, Box<dyn std::error::Error>> {
+    pub fn get_player(&self) {
+        let name_query = get_name_query();
         let resp = get_players(&self.season);
         let players = resp["people"].as_array().unwrap();
 
@@ -120,7 +117,8 @@ impl MlbClient<'_> {
             None
         };
 
-        Ok(player.unwrap())
+        println!("Printing statline for player...");
+        player.unwrap().print_statline();
     }
 
     pub fn get_team_stats(&self) {
