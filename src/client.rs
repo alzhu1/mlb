@@ -91,7 +91,7 @@ impl<R> MlbClient<'_, R> where R: BufRead {
                     .as_str()
                     .unwrap()
                     .to_lowercase()
-                    .contains(name_query.trim())
+                    .contains(&name_query.trim().to_lowercase())
             })
             .collect();
 
