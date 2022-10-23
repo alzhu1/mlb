@@ -1,11 +1,15 @@
 mod requests;
+mod io;
 
-use std::{collections::HashMap, io};
+use std::{collections::HashMap};
 
+use io::{get_season, get_filtered_players};
 use requests::{get_players, get_player_details, get_stat_leaders, get_teams, get_team_stat_leaders, get_team_stats};
 use serde::Deserialize;
 use serde_json::Value;
 use serde_with::{serde_as, DisplayFromStr};
+
+use crate::io::{get_team_id, get_leader_category};
 
 const HITTING_CATEGORIES: &'static [&'static str] = &["H", "HR", "RBI","SB","BB","HBP", "SO", "AVG", "OBP", "SLG", "OPS"];
 const PITCHING_CATEGORIES: &'static [&'static str] = &["W", "L", "ERA", "SHO", "HLD", "SV", "IP", "HR", "BB", "SO", "HBP", "WHIP", "BB9", "SO9", "AVG", "OBP", "SLG", "OPS"];
@@ -18,9 +22,10 @@ pub struct MlbClient<'a> {
 }
 
 impl MlbClient<'_> {
-    pub fn new(season: &str) -> Self {
-        let team_resp = get_teams(season);
+    pub fn new() -> Self {
+        let season = get_season();
 
+        let team_resp = get_teams(&season);
         let team_id_map: HashMap<u64, String> = team_resp["teams"]
             .as_array()
             .unwrap()
@@ -69,7 +74,7 @@ impl MlbClient<'_> {
         ]);
 
         MlbClient {
-            season: season.to_string(),
+            season,
             team_id_map,
             hitting_leader_categories,
             pitching_leader_categories
@@ -97,7 +102,7 @@ impl MlbClient<'_> {
         let player_value: Option<&Value> = match filtered_players.len() {
             0 => None,
             1 => Some(filtered_players[0]),
-            _ => self.filter_players(&filtered_players)
+            _ => get_filtered_players(&self.team_id_map, &filtered_players)
         };
 
         let player: Option<Box<dyn Player>> = if let Some(player_value) = player_value {
@@ -118,47 +123,8 @@ impl MlbClient<'_> {
         Ok(player.unwrap())
     }
 
-    fn filter_players<'a>(&'a self, filtered_players: &'a Vec<&Value>) -> Option<&Value> {
-        println!(
-            "{} players found, select the player to view stats for (pick a number).",
-            filtered_players.len()
-        );
-
-        for (index, player) in filtered_players.iter().enumerate() {
-            println!(
-                "{}) {}, {} ({})",
-                index + 1,
-                player["fullName"].as_str().unwrap(),
-                self.team_id_map[&player["currentTeam"]["id"].as_u64().unwrap()],
-                player["primaryPosition"]["abbreviation"].as_str().unwrap()
-            );
-        }
-
-        let mut chosen_player = String::new();
-        io::stdin()
-            .read_line(&mut chosen_player)
-            .expect("Failed to read line");
-
-        Some(filtered_players[chosen_player.trim().parse::<usize>().unwrap() - 1])
-    }
-
     pub fn get_team_stats(&self) {
-        println!("Select a team:");
-
-        let mut team_ids: Vec<&u64> = Vec::new();
-        for (index, (key, value)) in self.team_id_map.iter().enumerate() {
-            print!("{}) {: <10}", index + 1, value);
-            print!("{}", if index  % 5 == 4 { "\n" } else { "\t" });
-
-            team_ids.push(key);
-        }
-
-        let mut chosen_team = String::new();
-            io::stdin()
-                .read_line(&mut chosen_team)
-                .expect("Failed to read line");
-
-        let chosen_team = team_ids[chosen_team.trim().parse::<usize>().unwrap() - 1].to_owned();
+        let chosen_team = get_team_id(&self.team_id_map);
         let resp = get_team_stats(chosen_team, &self.season);
         let stats = resp["stats"].as_array().unwrap();
 
@@ -235,19 +201,7 @@ impl MlbClient<'_> {
             "pitching" => (&self.pitching_leader_categories, PITCHING_CATEGORIES),
             _ => panic!("Type must be either pitching or hitting")
         };
-
-        println!("Select a leader category:");
-        for (index, category) in stat_categories.iter().enumerate() {
-            print!("{}) {: <10}", index + 1, category);
-            print!("{}", if index % 3 == 2 || index == stat_categories.len() { "\n" } else { "\t" });
-        }
-
-        let mut chosen_category = String::new();
-        io::stdin()
-            .read_line(&mut chosen_category)
-            .expect("Failed to read line");
-        let chosen_category = stat_categories[chosen_category.trim().parse::<usize>().unwrap() - 1].to_owned();
-        let chosen_category = leader_categories[chosen_category.as_str()];
+        let chosen_category = get_leader_category(leader_categories, stat_categories);
 
         let resp = get_stat_leaders(&chosen_category, stat_type, &self.season);
         let leaders: &Vec<Value> = resp["leagueLeaders"].as_array().unwrap()[0]["leaders"].as_array().unwrap();
@@ -265,35 +219,8 @@ impl MlbClient<'_> {
             _ => panic!("Type must be either pitching or hitting")
         };
 
-        println!("Select a team:");
-
-        let mut team_ids: Vec<&u64> = Vec::new();
-        for (index, (key, value)) in self.team_id_map.iter().enumerate() {
-            print!("{}) {: <10}", index + 1, value);
-            print!("{}", if index  % 5 == 4 { "\n" } else { "\t" });
-
-            team_ids.push(key);
-        }
-
-        let mut chosen_team = String::new();
-            io::stdin()
-                .read_line(&mut chosen_team)
-                .expect("Failed to read line");
-
-        let chosen_team = team_ids[chosen_team.trim().parse::<usize>().unwrap() - 1].to_owned();
-
-        println!("Select a leader category:");
-        for (index, category) in stat_categories.iter().enumerate() {
-            print!("{}) {: <10}", index + 1, category);
-            print!("{}", if index % 3 == 2 || index == stat_categories.len() { "\n" } else { "\t" });
-        }
-
-        let mut chosen_category = String::new();
-        io::stdin()
-            .read_line(&mut chosen_category)
-            .expect("Failed to read line");
-        let chosen_category = stat_categories[chosen_category.trim().parse::<usize>().unwrap() - 1].to_owned();
-        let chosen_category = leader_categories[chosen_category.as_str()];
+        let chosen_team = get_team_id(&self.team_id_map);
+        let chosen_category = get_leader_category(leader_categories, stat_categories);
 
         let resp = get_team_stat_leaders(chosen_team, &chosen_category, &self.season);
 
