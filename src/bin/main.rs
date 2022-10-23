@@ -19,13 +19,13 @@ use std::io;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let choice = get_entry();
-    let mlb_client = mlb::MlbClient::new();
+    let mlb_client = mlb::create_client();
 
     match choice.as_str() {
         "1" => mlb_client.get_player(),
         "2" => mlb_client.get_team_stats(),
-        "3" => mlb_client.get_stat_leaders("hitting"),
-        "4" => mlb_client.get_team_stat_leaders("pitching"),
+        "3" => mlb_client.get_stat_leaders(),
+        "4" => mlb_client.get_team_stat_leaders(),
         _ => panic!("This should not execute"),
     }
 
