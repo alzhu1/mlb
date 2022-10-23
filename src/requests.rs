@@ -78,3 +78,20 @@ pub fn get_player_details(player_id: u64, player_type: &str, season: &str) -> Va
         Err(e) => panic!("Failed to get response: {}", e),
     }
 }
+
+pub fn get_team_stats(team_id: u64, season: &str) -> Value {
+    let path = format!("{}/{}/stats", TEAMS_LOOKUP, team_id);
+    let resp = get(
+        path.as_str(),
+        HashMap::from([
+            ("season", season),
+            ("group", "hitting,pitching"),
+            ("stats", "season")
+        ]),
+    );
+
+    match resp {
+        Ok(response) => response,
+        Err(e) => panic!("Failed to get response: {}", e),
+    }
+}

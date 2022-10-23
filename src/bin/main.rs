@@ -51,15 +51,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let season = season.trim();
 
-    println!("Enter name of player to search: ");
-    let mut name_query = String::new();
-    read_input(&mut name_query);
-
     let mlb_client = mlb::MlbClient::new(season);
 
-    let player = mlb_client.get_player(&name_query)?;
-    println!("Printing statline for player...");
-    player.print_statline();
+    // TODO: better option handling, this code is for player search
+    // println!("Enter name of player to search: ");
+    // let mut name_query = String::new();
+    // read_input(&mut name_query);
+
+    // let player = mlb_client.get_player(&name_query)?;
+    // println!("Printing statline for player...");
+    // player.print_statline();
+
+    mlb_client.get_team_stats();
 
     Ok(())
 }
