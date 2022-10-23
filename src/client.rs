@@ -1,23 +1,26 @@
 use std::collections::HashMap;
+use std::io::BufRead;
 use serde_json::Value;
 
-use crate::io::{get_team_id, get_leader_category, get_season, get_filtered_players, get_name_query, get_stat_type};
+use crate::io::IOReader;
 use crate::player::{Batter, Pitcher, Player};
 use crate::requests::{get_players, get_stat_leaders, get_teams, get_team_stat_leaders, get_team_stats};
 
 const HITTING_CATEGORIES: &'static [&'static str] = &["H", "HR", "RBI","SB","BB","HBP", "SO", "AVG", "OBP", "SLG", "OPS"];
 const PITCHING_CATEGORIES: &'static [&'static str] = &["W", "L", "ERA", "SHO", "HLD", "SV", "IP", "HR", "BB", "SO", "HBP", "WHIP", "BB9", "SO9", "AVG", "OBP", "SLG", "OPS"];
 
-pub struct MlbClient<'a> {
+pub struct MlbClient<'a, R> {
+    io_reader: IOReader<R>,
     season: String,
     team_id_map: HashMap<u64, String>,
     hitting_leader_categories: HashMap<&'a str, &'a str>,
     pitching_leader_categories: HashMap<&'a str, &'a str>,
 }
 
-impl MlbClient<'_> {
-    pub fn new() -> Self {
-        let season = get_season();
+impl<R> MlbClient<'_, R> where R: BufRead {
+    pub fn new(reader: R) -> Self {
+        let mut io_reader = IOReader { reader };
+        let season = io_reader.get_season();
 
         let team_resp = get_teams(&season);
         let team_id_map: HashMap<u64, String> = team_resp["teams"]
@@ -68,6 +71,7 @@ impl MlbClient<'_> {
         ]);
 
         MlbClient {
+            io_reader,
             season,
             team_id_map,
             hitting_leader_categories,
@@ -75,8 +79,8 @@ impl MlbClient<'_> {
         }
     }
 
-    pub fn get_player(&self) {
-        let name_query = get_name_query();
+    pub fn get_player(&mut self) {
+        let name_query = self.io_reader.get_name_query();
         let resp = get_players(&self.season);
         let players = resp["people"].as_array().unwrap();
 
@@ -94,7 +98,7 @@ impl MlbClient<'_> {
         let player_value: Option<&Value> = match filtered_players.len() {
             0 => None,
             1 => Some(filtered_players[0]),
-            _ => get_filtered_players(&self.team_id_map, &filtered_players)
+            _ => self.io_reader.get_filtered_players(&self.team_id_map, &filtered_players)
         };
 
         let player: Option<Box<dyn Player>> = if let Some(player_value) = player_value {
@@ -116,8 +120,8 @@ impl MlbClient<'_> {
         player.unwrap().print_statline();
     }
 
-    pub fn get_team_stats(&self) {
-        let chosen_team = get_team_id(&self.team_id_map);
+    pub fn get_team_stats(&mut self) {
+        let chosen_team = self.io_reader.get_team_id(&self.team_id_map);
         let resp = get_team_stats(chosen_team, &self.season);
         let stats = resp["stats"].as_array().unwrap();
 
@@ -188,8 +192,8 @@ impl MlbClient<'_> {
         );
     }
 
-    pub fn get_stat_leaders(&self) {
-        let stat_type = get_stat_type();
+    pub fn get_stat_leaders(&mut self) {
+        let stat_type = self.io_reader.get_stat_type();
         let stat_type = stat_type.as_str();
 
         let (leader_categories, stat_categories) = match stat_type {
@@ -197,7 +201,7 @@ impl MlbClient<'_> {
             "pitching" => (&self.pitching_leader_categories, PITCHING_CATEGORIES),
             _ => panic!("Type must be either pitching or hitting")
         };
-        let chosen_category = get_leader_category(leader_categories, stat_categories);
+        let chosen_category = self.io_reader.get_leader_category(leader_categories, stat_categories);
 
         let resp = get_stat_leaders(&chosen_category, stat_type, &self.season);
         let leaders: &Vec<Value> = resp["leagueLeaders"].as_array().unwrap()[0]["leaders"].as_array().unwrap();
@@ -208,8 +212,8 @@ impl MlbClient<'_> {
         }
     }
 
-    pub fn get_team_stat_leaders(&self) {
-        let stat_type = get_stat_type();
+    pub fn get_team_stat_leaders(&mut self) {
+        let stat_type = self.io_reader.get_stat_type();
         let stat_type = stat_type.as_str();
 
         let (leader_categories, stat_categories) = match stat_type {
@@ -218,8 +222,8 @@ impl MlbClient<'_> {
             _ => panic!("Type must be either pitching or hitting")
         };
 
-        let chosen_team = get_team_id(&self.team_id_map);
-        let chosen_category = get_leader_category(leader_categories, stat_categories);
+        let chosen_team = self.io_reader.get_team_id(&self.team_id_map);
+        let chosen_category = self.io_reader.get_leader_category(leader_categories, stat_categories);
 
         let resp = get_team_stat_leaders(chosen_team, &chosen_category, &self.season);
 
