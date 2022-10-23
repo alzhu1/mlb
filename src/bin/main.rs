@@ -62,7 +62,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("Printing statline for player...");
     // player.print_statline();
 
-    mlb_client.get_team_stats();
+    // TODO: better option handling, this code is for leaders + team stats
+    // mlb_client.get_team_stats();
+    // mlb_client.get_stat_leaders("hitting");
+    // mlb_client.get_team_stat_leaders("pitching");
 
     Ok(())
 }

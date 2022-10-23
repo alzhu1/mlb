@@ -7,6 +7,7 @@ const MLB_LOOKUP_API_ENDPOINT: &str = "https://statsapi.mlb.com/api/v1";
 const PLAYER_LOOKUP: &str = "people";
 const TEAMS_LOOKUP: &str = "teams";
 const SEARCH_PLAYER_ALL: &str = "sports/1/players";
+const STAT_LEADERS: &str = "stats/leaders";
 
 fn get_formatted_url(path: &str) -> Result<Url, Box<dyn std::error::Error>> {
     Ok(Url::parse(
@@ -86,7 +87,39 @@ pub fn get_team_stats(team_id: u64, season: &str) -> Value {
         HashMap::from([
             ("season", season),
             ("group", "hitting,pitching"),
-            ("stats", "season")
+            ("stats", "season"),
+        ]),
+    );
+
+    match resp {
+        Ok(response) => response,
+        Err(e) => panic!("Failed to get response: {}", e),
+    }
+}
+
+pub fn get_stat_leaders(leader_categories: &str, stat_type: &str, season: &str) -> Value {
+    let resp = get(
+        STAT_LEADERS,
+        HashMap::from([
+            ("season", season),
+            ("statGroup", stat_type),
+            ("leaderCategories", leader_categories),
+        ]),
+    );
+
+    match resp {
+        Ok(response) => response,
+        Err(e) => panic!("Failed to get response: {}", e),
+    }
+}
+
+pub fn get_team_stat_leaders(team_id: u64, leader_categories: &str, season: &str) -> Value {
+    let path = format!("{}/{}/leaders", TEAMS_LOOKUP, team_id);
+    let resp = get(
+        path.as_str(),
+        HashMap::from([
+            ("season", season),
+            ("leaderCategories", leader_categories),
         ]),
     );
 
