@@ -7,6 +7,9 @@ use serde::Deserialize;
 use serde_json::Value;
 use serde_with::{serde_as, DisplayFromStr};
 
+const HITTING_CATEGORIES: &'static [&'static str] = &["H", "HR", "RBI","SB","BB","HBP", "SO", "AVG", "OBP", "SLG", "OPS"];
+const PITCHING_CATEGORIES: &'static [&'static str] = &["W", "L", "ERA", "SHO", "HLD", "SV", "IP", "HR", "BB", "SO", "HBP", "WHIP", "BB9", "SO9", "AVG", "OBP", "SLG", "OPS"];
+
 pub struct MlbClient<'a> {
     season: String,
     team_id_map: HashMap<u64, String>,
@@ -227,25 +230,24 @@ impl MlbClient<'_> {
     }
 
     pub fn get_stat_leaders(&self, stat_type: &str) {
-        let leader_categories: &HashMap<&str, &str> = match stat_type {
-            "hitting" => &self.hitting_leader_categories,
-            "pitching" => &self.pitching_leader_categories,
+        let (leader_categories, stat_categories) = match stat_type {
+            "hitting" => (&self.hitting_leader_categories, HITTING_CATEGORIES),
+            "pitching" => (&self.pitching_leader_categories, PITCHING_CATEGORIES),
             _ => panic!("Type must be either pitching or hitting")
         };
 
         println!("Select a leader category:");
-        let mut categories: Vec<&str> =  Vec::new();
-        for (index, (key, value)) in leader_categories.iter().enumerate() {
-            print!("{}) {: <10}", index + 1, key);
-            print!("{}", if index % 3 == 2 { "\n" } else { "\t" });
-            categories.push(value);
+        for (index, category) in stat_categories.iter().enumerate() {
+            print!("{}) {: <10}", index + 1, category);
+            print!("{}", if index % 3 == 2 || index == stat_categories.len() { "\n" } else { "\t" });
         }
 
         let mut chosen_category = String::new();
         io::stdin()
             .read_line(&mut chosen_category)
             .expect("Failed to read line");
-        let chosen_category = categories[chosen_category.trim().parse::<usize>().unwrap() - 1].to_owned();
+        let chosen_category = stat_categories[chosen_category.trim().parse::<usize>().unwrap() - 1].to_owned();
+        let chosen_category = leader_categories[chosen_category.as_str()];
 
         let resp = get_stat_leaders(&chosen_category, stat_type, &self.season);
         let leaders: &Vec<Value> = resp["leagueLeaders"].as_array().unwrap()[0]["leaders"].as_array().unwrap();
@@ -257,9 +259,9 @@ impl MlbClient<'_> {
     }
 
     pub fn get_team_stat_leaders(&self, stat_type: &str) {
-        let leader_categories: &HashMap<&str, &str> = match stat_type {
-            "hitting" => &self.hitting_leader_categories,
-            "pitching" => &self.pitching_leader_categories,
+        let (leader_categories, stat_categories) = match stat_type {
+            "hitting" => (&self.hitting_leader_categories, HITTING_CATEGORIES),
+            "pitching" => (&self.pitching_leader_categories, PITCHING_CATEGORIES),
             _ => panic!("Type must be either pitching or hitting")
         };
 
@@ -281,18 +283,17 @@ impl MlbClient<'_> {
         let chosen_team = team_ids[chosen_team.trim().parse::<usize>().unwrap() - 1].to_owned();
 
         println!("Select a leader category:");
-        let mut categories: Vec<&str> =  Vec::new();
-        for (index, (key, value)) in leader_categories.iter().enumerate() {
-            print!("{}) {: <10}", index + 1, key);
-            print!("{}", if index % 3 == 2 { "\n" } else { "\t" });
-            categories.push(value);
+        for (index, category) in stat_categories.iter().enumerate() {
+            print!("{}) {: <10}", index + 1, category);
+            print!("{}", if index % 3 == 2 || index == stat_categories.len() { "\n" } else { "\t" });
         }
 
         let mut chosen_category = String::new();
         io::stdin()
             .read_line(&mut chosen_category)
             .expect("Failed to read line");
-        let chosen_category = categories[chosen_category.trim().parse::<usize>().unwrap() - 1].to_owned();
+        let chosen_category = stat_categories[chosen_category.trim().parse::<usize>().unwrap() - 1].to_owned();
+        let chosen_category = leader_categories[chosen_category.as_str()];
 
         let resp = get_team_stat_leaders(chosen_team, &chosen_category, &self.season);
 
